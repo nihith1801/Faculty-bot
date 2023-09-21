@@ -9,6 +9,9 @@ class ConversationalBot:
         # List to store the user's responses.
         self.user_responses = []
 
+        # The current model usage.
+        self.model_usage = None
+
     def train(self, dataset):
         """Trains the model on the given dataset.
 
@@ -42,16 +45,24 @@ class ConversationalBot:
         output_text = self.tokenizer.decode(output_ids, skip_special_tokens=True)
         return output_text
 
-    def train_on_command(self, command):
-        """Trains the model on the given command.
+    def change_model_usage(self, new_model_usage):
+        """Changes the model usage.
 
         Args:
-            command: The command to train the model on.
+            new_model_usage: The new model usage.
         """
 
-        if command == "train yourself":
-            # Train the model on the list of user responses.
-            self.train(self.user_responses)
+        # Create a new dataset based on the new model usage.
+        new_dataset = []
+        for user_response in self.user_responses:
+            if user_response.startswith(new_model_usage):
+                new_dataset.append((user_response, user_response.split(new_model_usage)[1]))
+
+        # Train a new model on the new dataset.
+        self.train(new_dataset)
+
+        # Set the current model usage.
+        self.model_usage = new_model_usage
 
     def take_input(self):
         """Takes input from the user as text and voice.
@@ -81,17 +92,16 @@ class ConversationalBot:
             # Get the user's input.
             user_input = self.take_input()
 
-            # Add the user's response to the list.
-            self.user_responses.append(user_input)
+            # If the user input is "Change model usage", call the `change_model_usage()` method.
+            if user_input.startswith("Change model usage"):
+                self.change_model_usage(user_input.split("Change model usage")[1])
 
-            # If the user input is "train yourself", train the model.
-            if user_input == "train yourself":
-                self.train_on_command(user_input)
+            # Otherwise, generate a response to the user's input.
             else:
-                # Generate a response to the user's input.
-                response = self.generate_response(user_input)
+                if self.model_usage is not None:
+                    user_input = self.model_usage + user_input
 
-                # Print the response.
+                response = self.generate_response(user_input)
                 print(response)
 
 if __name__ == "__main__":
