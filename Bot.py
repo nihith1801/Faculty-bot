@@ -1,109 +1,31 @@
-import transformers
-import speech_recognition as sr
+from gpt4all import GPT4All
 
-class ConversationalBot:
-    def __init__(self, model_name="DialoGPT-large"):
-        self.model = transformers.AutoModelForCausalLM.from_pretrained(model_name)
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(model_name)
+# Specify the path to your pre-trained model
+model_dir = "fmodel.bin"
 
-        # List to store the user's responses.
-        self.user_responses = []
+# Instantiate GPT4All with your pre-trained model and disable downloads
+model = GPT4All(model_dir, allow_download=False)
 
-        # The current model usage.
-        self.model_usage = None
+# Print the default system and prompt templates
+print("Default system template:", repr(model.config['systemPrompt']))
+print("Default prompt template:", repr(model.config['promptTemplate']))
+print()
 
-    def train(self, dataset):
-        """Trains the model on the given dataset.
+# Start a conversation with the bot
+while True:
+    # Get a message from the user
+    user_message = input("User: ")
 
-        Args:
-            dataset: A list of (input_text, output_text) pairs.
-        """
+    # If the user types 'exit', end the conversation
+    if user_message.lower() == "exit":
+        break
 
-        inputs = []
-        labels = []
-        for input_text, output_text in dataset:
-            inputs.append(self.tokenizer(input_text, return_tensors="pt").input_ids)
-            labels.append(self.tokenizer(output_text, return_tensors="pt").input_ids)
+    # Generate a response to the user's message
+    with model.chat_session():
+        response = model.generate(prompt=user_message, temp=0)
+        print("Session system template:", repr(model.current_chat_session[0]['content']))
+        print("Session prompt template:", repr(model._current_prompt_template))
+    
+    # Print the assistant's response
+    print(f"Assistant: {response}")
 
-        self.model.train()
-        loss = self.model(inputs, labels=labels).loss
-        loss.backward()
-        self.model.optimizer.step()
-
-    def generate_response(self, input_text):
-        """Generates a response to the given input text.
-
-        Args:
-            input_text: The input text to generate a response for.
-
-        Returns:
-            A string containing the generated response.
-        """
-
-        input_ids = self.tokenizer(input_text, return_tensors="pt").input_ids
-        output_ids = self.model.generate(input_ids, max_length=1024)
-        output_text = self.tokenizer.decode(output_ids, skip_special_tokens=True)
-        return output_text
-
-    def change_model_usage(self, new_model_usage):
-        """Changes the model usage.
-
-        Args:
-            new_model_usage: The new model usage.
-        """
-
-        # Create a new dataset based on the new model usage.
-        new_dataset = []
-        for user_response in self.user_responses:
-            if user_response.startswith(new_model_usage):
-                new_dataset.append((user_response, user_response.split(new_model_usage)[1]))
-
-        # Train a new model on the new dataset.
-        self.train(new_dataset)
-
-        # Set the current model usage.
-        self.model_usage = new_model_usage
-
-    def take_input(self):
-        """Takes input from the user as text and voice.
-
-        Returns:
-            A string containing the user's input.
-        """
-
-        # Take text input from the user.
-        text_input = input("Enter your input: ")
-
-        # Take voice input from the user.
-        r = sr.Recognizer()
-        with sr.Microphone() as source:
-            audio_input = r.listen(source)
-
-        try:
-            voice_input = r.recognize_google(audio_input)
-        except sr.UnknownValueError:
-            voice_input = None
-
-        # Return the user's input.
-        return text_input or voice_input
-
-    def main(self):
-        while True:
-            # Get the user's input.
-            user_input = self.take_input()
-
-            # If the user input is "Change model usage", call the `change_model_usage()` method.
-            if user_input.startswith("Change model usage"):
-                self.change_model_usage(user_input.split("Change model usage")[1])
-
-            # Otherwise, generate a response to the user's input.
-            else:
-                if self.model_usage is not None:
-                    user_input = self.model_usage + user_input
-
-                response = self.generate_response(user_input)
-                print(response)
-
-if __name__ == "__main__":
-    bot = ConversationalBot()
-    bot.main()
